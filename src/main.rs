@@ -10,10 +10,13 @@ use std::io::Write;
 use std::process::exit;
 
 fn main() {
+    // create a handle to write errors to
     let mut stderr_writer = BufWriter::new(stderr());
 
+    // arguments iterator
     let mut args_iter = args().skip(1);
 
+    // first argument is the first file (file a)
     let file_a = args_iter.next();
 
     if file_a.is_none() {
@@ -22,6 +25,7 @@ fn main() {
         exit(1);
     }
 
+    // second argument is the second file (file b)
     let file_b = args_iter.next();
 
     if file_b.is_none() {
@@ -58,6 +62,7 @@ fn main() {
         exit(4);
     }
 
+    // optionally, a target file to write to, else it will be stdout
     let target = args_iter.next();
 
     let mut stream_out: BufWriter<Box<dyn std::io::Write>> = match target {
@@ -74,31 +79,36 @@ fn main() {
         None => BufWriter::new(Box::new(stdout())),
     };
 
+    // create buffered readers to read from the input files line by line
+    // with better optimization
     let buf_a = BufReader::new(file_a_handle.unwrap());
     let buf_b = BufReader::new(file_b_handle.unwrap());
 
+    // create the maps that will be counting the lines in each file
     let mut map_a = HashMap::<String, Comparison>::new();
     let mut map_b = HashMap::<String, Comparison>::new();
 
+    // fill the maps with the line instances
     for line in buf_a.lines() {
         let line_str: String = line.unwrap();
         map_a
-            .entry(line_str)
-            .and_modify(|item: &mut Comparison| item.value = item.value + 1)
-            .or_insert(Comparison::with_value(1));
+            .entry(line_str) // retrieve the entry for that specific line
+            .and_modify(|item: &mut Comparison| item.count = item.count + 1) // increment count if it exists
+            .or_insert(Comparison::with_value(1)); // insert with default value 1 if it doesn't exist
     }
 
     for line in buf_b.lines() {
         let line_str: String = line.unwrap();
         map_b
             .entry(line_str)
-            .and_modify(|item: &mut Comparison| item.value = item.value + 1)
+            .and_modify(|item: &mut Comparison| item.count = item.count + 1)
             .or_insert(Comparison::with_value(1));
     }
 
     compare_map_results(&mut map_a, &mut map_b);
     print_diff(&mut map_a, &mut map_b, &mut stream_out);
 
+    // flush before dropping
     stderr_writer.flush().unwrap();
     stream_out.flush().unwrap();
 }
@@ -111,25 +121,25 @@ fn print_diff<T: std::io::Write>(
     write!(stream, "file a results: \n").unwrap();
     for a in map_a.iter() {
         let (k, c): (&String, &Comparison) = a;
-        write!(stream, "{}\t{}\t{}\n", c.kind, c.value, k).unwrap();
+        write!(stream, "{}\t{}\t{}\n", c.kind, c.count, k).unwrap();
     }
 
     write!(stream, "file b results: \n").unwrap();
     for b in map_b.iter() {
         let (k, c): (&String, &Comparison) = b;
-        write!(stream, "{}\t{}\t{}\n", c.kind, c.value, k).unwrap();
+        write!(stream, "{}\t{}\t{}\n", c.kind, c.count, k).unwrap();
     }
 }
 
 struct Comparison {
-    value: u32,
+    count: u32,
     kind: String,
 }
 
 impl Comparison {
     fn with_value(value: u32) -> Comparison {
         return Comparison {
-            value,
+            count: value,
             kind: "++".to_string(),
         };
     }
@@ -139,31 +149,46 @@ fn compare_map_results(
     map_a: &mut HashMap<String, Comparison>,
     map_b: &mut HashMap<String, Comparison>,
 ) {
+    // iterate over the entries from file a
     for entries_a in map_a.iter_mut() {
         let (key_a, val_a): (&String, &mut Comparison) = entries_a;
 
+        // the the corresponding entry from file b
         let b_entry = map_b.get_mut(key_a);
 
+        // if file b does not have this entry, we are done
         if b_entry.is_none() {
             continue;
         }
 
+        // if file b has the entry, unwrap it to calculate diffs
         let val_b: &mut Comparison = b_entry.unwrap();
 
-        if val_a.value > val_b.value {
-            val_a.value -= val_b.value;
+        if val_a.count > val_b.count {
+            // if a has a higher value, substract the value from b to get the
+            // difference
+            val_a.count -= val_b.count;
+            // if there are more entries in file a, the kind should be '+' since
+            // the entry occured in both files
             val_a.kind = "+".to_string();
-            val_b.value = 0;
-        } else if val_b.value > val_a.value {
-            val_b.value -= val_a.value;
+            // set the value of this entry in b to zero as this entry is
+            // already processed (in file a)
+            val_b.count = 0;
+        } else if val_b.count > val_a.count {
+            // do the same but reversed for a-b
+            val_b.count -= val_a.count;
             val_b.kind = "+".to_string();
-            val_a.value = 0;
+            val_a.count = 0;
         } else {
-            val_a.value = 0;
-            val_b.value = 0;
+            // if they are equal, we can discard these entries in both a and b
+            // since they do not matter for the diff anymore
+            val_a.count = 0;
+            val_b.count = 0;
         }
     }
 
-    map_a.retain(|_, c| c.value != 0);
-    map_b.retain(|_, c| c.value != 0);
+    // filter out all entries where there is a 0 value since these values have
+    // been calculated and are stored in the opposing file map
+    map_a.retain(|_, c| c.count != 0);
+    map_b.retain(|_, c| c.count != 0);
 }
