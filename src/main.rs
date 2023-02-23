@@ -59,25 +59,6 @@ fn main() {
         exit(4);
     }
 
-    let target = args_iter.next();
-
-    let mut stream_out: BufWriter<Box<dyn Write>> = match target {
-        Some(filename) => {
-            let handle = File::create(filename);
-            if handle.is_err() {
-                write!(stderr_writer, "problem opening file for writing: ").unwrap();
-                write!(stderr_writer, "{}\n", handle.err().unwrap().to_string()).unwrap();
-                stderr_writer.flush().unwrap();
-                exit(5);
-            } else {
-                BufWriter::new(Box::new(handle.unwrap()))
-            }
-        },
-        None => {
-            BufWriter::new(Box::new(stdout()))
-        }
-    };
-
     let buf_a = BufReader::new(file_a_handle.unwrap());
     let buf_b = BufReader::new(file_b_handle.unwrap());
 
@@ -101,7 +82,23 @@ fn main() {
     }
 
     compare_map_results(&mut map_a, &mut map_b);
-    print_diff(&mut map_a, &mut map_b, &mut stream_out);
+
+    let target = args_iter.next();
+    let mut stream_out = BufWriter::new(stdout());
+
+    if target.is_some() {
+        let handle = File::create(target.unwrap());
+        if handle.is_err() {
+            write!(stderr_writer, "problem creating file for writing: ").unwrap();
+            write!(stderr_writer, "{}\n", handle.err().unwrap().to_string()).unwrap();
+            stderr_writer.flush().unwrap();
+            exit(5);
+        }
+        let mut file_out = BufWriter::new(handle.unwrap());
+        print_diff(&mut map_a, &mut map_b, &mut file_out);
+    } else {
+        print_diff(&mut map_a, &mut map_b, &mut stream_out);
+    }
 
     stderr_writer.flush().unwrap();
     stream_out.flush().unwrap();
