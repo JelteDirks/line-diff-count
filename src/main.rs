@@ -10,7 +10,6 @@ use std::io::Write;
 use std::process::exit;
 
 fn main() {
-    let mut stdout_writer = BufWriter::new(stdout());
     let mut stderr_writer = BufWriter::new(stderr());
 
     let mut args_iter = args().skip(1);
@@ -30,6 +29,7 @@ fn main() {
         stderr_writer.flush().unwrap();
         exit(2);
     }
+
 
     let file_a_handle = File::open(file_a.unwrap());
 
@@ -59,6 +59,24 @@ fn main() {
         exit(4);
     }
 
+    let target = args_iter.next();
+
+    let mut stream_out: BufWriter<Box<dyn Write>> = match target {
+        Some(filename) => {
+            let handle = File::create(filename);
+            if handle.is_err() {
+                write!(stderr_writer, "problem opening file for writing").unwrap();
+                write!(stderr_writer, "{}", handle.err().unwrap().to_string()).unwrap();
+                exit(5);
+            } else {
+                BufWriter::new(Box::new(handle.unwrap()))
+            }
+        },
+        None => {
+            BufWriter::new(Box::new(stdout()))
+        }
+    };
+
     let buf_a = BufReader::new(file_a_handle.unwrap());
     let buf_b = BufReader::new(file_b_handle.unwrap());
 
@@ -82,27 +100,27 @@ fn main() {
     }
 
     compare_map_results(&mut map_a, &mut map_b);
-    print_diff(&mut map_a, &mut map_b, &mut stdout_writer);
+    print_diff(&mut map_a, &mut map_b, &mut stream_out);
 
     stderr_writer.flush().unwrap();
-    stdout_writer.flush().unwrap();
+    stream_out.flush().unwrap();
 }
 
-fn print_diff(
+fn print_diff<T: std::io::Write>(
     map_a: &mut HashMap<String, Comparison>,
     map_b: &mut HashMap<String, Comparison>,
-    stdout_writer: &mut BufWriter<std::io::Stdout>,
+    stream: &mut BufWriter<T>,
 ) {
-    write!(stdout_writer, "file a results: \n").unwrap();
+    write!(stream, "file a results: \n").unwrap();
     for a in map_a.iter() {
         let (k, c): (&String, &Comparison) = a;
-        write!(stdout_writer, "{}\t{}\t{}\n", c.kind, c.value, k).unwrap();
+        write!(stream, "{}\t{}\t{}\n", c.kind, c.value, k).unwrap();
     }
 
-    write!(stdout_writer, "file b results: \n").unwrap();
+    write!(stream, "file b results: \n").unwrap();
     for b in map_b.iter() {
         let (k, c): (&String, &Comparison) = b;
-        write!(stdout_writer, "{}\t{}\t{}\n", c.kind, c.value, k).unwrap();
+        write!(stream, "{}\t{}\t{}\n", c.kind, c.value, k).unwrap();
     }
 }
 
