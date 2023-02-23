@@ -84,7 +84,52 @@ fn main() {
     }
 
     // compare results from a and b
+    compare_map_results(&mut map_a, &mut map_b);
+
+    for a in map_a {
+        let (k,v) = a;
+        println!("{:?} : {:?}", k, v);
+    }
+
+    for a in map_b {
+        let (k,v) = a;
+        println!("{:?} : {:?}", k, v);
+    }
 
     stderr_writer.flush().unwrap();
     stdout_writer.flush().unwrap();
+}
+
+struct Comparison {
+    value: u32,
+    kind: String,
+}
+
+fn compare_map_results(map_a: &mut HashMap<String, u32>, map_b: &mut HashMap<String, u32>) {
+
+    for entries_a in map_a.iter_mut() {
+        let (key_a, val_a): (&String, &mut u32) = entries_a;
+
+        let b_entry = map_b.get_mut(key_a);
+
+        if b_entry.is_none() {
+            continue;
+        }
+
+        let val_b: &mut u32 = b_entry.unwrap();
+
+        if *val_a > *val_b {
+            *val_a = *val_a - *val_b;
+            *val_b = 0;
+        } else if *val_b > *val_a {
+            *val_b = *val_b - *val_a;
+            *val_a = 0;
+        } else {
+            *val_a = 0;
+            *val_b = 0;
+        }
+    }
+
+    map_a.retain(|_, value| *value != 0);
+    map_b.retain(|_, value| *value != 0);
 }
