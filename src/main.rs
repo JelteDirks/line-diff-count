@@ -30,7 +30,6 @@ fn main() {
         exit(2);
     }
 
-
     let file_a_handle = File::open(file_a.unwrap());
 
     if file_a_handle.is_err() {
@@ -61,7 +60,7 @@ fn main() {
 
     let target = args_iter.next();
 
-    let mut stream_out: BufWriter<Box<dyn Write>> = match target {
+    let mut stream_out: BufWriter<Box<dyn std::io::Write>> = match target {
         Some(filename) => {
             let handle = File::create(filename);
             if handle.is_err() {
@@ -69,13 +68,10 @@ fn main() {
                 write!(stderr_writer, "{}\n", handle.err().unwrap().to_string()).unwrap();
                 stderr_writer.flush().unwrap();
                 exit(5);
-            } else {
-                BufWriter::new(Box::new(handle.unwrap()))
             }
-        },
-        None => {
-            BufWriter::new(Box::new(stdout()))
+            BufWriter::new(Box::new(handle.unwrap()))
         }
+        None => BufWriter::new(Box::new(stdout())),
     };
 
     let buf_a = BufReader::new(file_a_handle.unwrap());
