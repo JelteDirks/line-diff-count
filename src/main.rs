@@ -65,8 +65,9 @@ fn main() {
         Some(filename) => {
             let handle = File::create(filename);
             if handle.is_err() {
-                write!(stderr_writer, "problem opening file for writing").unwrap();
-                write!(stderr_writer, "{}", handle.err().unwrap().to_string()).unwrap();
+                write!(stderr_writer, "problem opening file for writing: ").unwrap();
+                write!(stderr_writer, "{}\n", handle.err().unwrap().to_string()).unwrap();
+                stderr_writer.flush().unwrap();
                 exit(5);
             } else {
                 BufWriter::new(Box::new(handle.unwrap()))
