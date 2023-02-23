@@ -31,8 +31,6 @@ fn main() {
         exit(2);
     }
 
-    write!(stderr_writer, "comparing {:?} with {:?}\n", file_a, file_b).unwrap();
-
     let file_a_handle = File::open(file_a.unwrap());
 
     if file_a_handle.is_err() {
@@ -64,40 +62,48 @@ fn main() {
     let buf_a = BufReader::new(file_a_handle.unwrap());
     let buf_b = BufReader::new(file_b_handle.unwrap());
 
-    let mut map_a = HashMap::<String, u32>::new();
-    let mut map_b = HashMap::<String, u32>::new();
+    let mut map_a = HashMap::<String, Comparison>::new();
+    let mut map_b = HashMap::<String, Comparison>::new();
 
     for line in buf_a.lines() {
         let line_str: String = line.unwrap();
         map_a
             .entry(line_str)
-            .and_modify(|item| *item = *item + 1)
-            .or_insert(1);
+            .and_modify(|item: &mut Comparison| item.value = item.value + 1)
+            .or_insert(Comparison::with_value(1));
     }
 
     for line in buf_b.lines() {
         let line_str: String = line.unwrap();
         map_b
             .entry(line_str)
-            .and_modify(|item| *item = *item + 1)
-            .or_insert(1);
+            .and_modify(|item: &mut Comparison| item.value = item.value + 1)
+            .or_insert(Comparison::with_value(1));
     }
 
-    // compare results from a and b
     compare_map_results(&mut map_a, &mut map_b);
-
-    for a in map_a {
-        let (k,v) = a;
-        println!("{:?} : {:?}", k, v);
-    }
-
-    for a in map_b {
-        let (k,v) = a;
-        println!("{:?} : {:?}", k, v);
-    }
+    print_diff(&mut map_a, &mut map_b, &mut stdout_writer);
 
     stderr_writer.flush().unwrap();
     stdout_writer.flush().unwrap();
+}
+
+fn print_diff(
+    map_a: &mut HashMap<String, Comparison>,
+    map_b: &mut HashMap<String, Comparison>,
+    stdout_writer: &mut BufWriter<std::io::Stdout>,
+) {
+    write!(stdout_writer, "file a results: \n").unwrap();
+    for a in map_a.iter() {
+        let (k, c): (&String, &Comparison) = a;
+        write!(stdout_writer, "{}\t{}\t{}\n", c.kind, c.value, k).unwrap();
+    }
+
+    write!(stdout_writer, "file b results: \n").unwrap();
+    for b in map_b.iter() {
+        let (k, c): (&String, &Comparison) = b;
+        write!(stdout_writer, "{}\t{}\t{}\n", c.kind, c.value, k).unwrap();
+    }
 }
 
 struct Comparison {
@@ -105,10 +111,21 @@ struct Comparison {
     kind: String,
 }
 
-fn compare_map_results(map_a: &mut HashMap<String, u32>, map_b: &mut HashMap<String, u32>) {
+impl Comparison {
+    fn with_value(value: u32) -> Comparison {
+        return Comparison {
+            value,
+            kind: "++".to_string(),
+        };
+    }
+}
 
+fn compare_map_results(
+    map_a: &mut HashMap<String, Comparison>,
+    map_b: &mut HashMap<String, Comparison>,
+) {
     for entries_a in map_a.iter_mut() {
-        let (key_a, val_a): (&String, &mut u32) = entries_a;
+        let (key_a, val_a): (&String, &mut Comparison) = entries_a;
 
         let b_entry = map_b.get_mut(key_a);
 
@@ -116,20 +133,22 @@ fn compare_map_results(map_a: &mut HashMap<String, u32>, map_b: &mut HashMap<Str
             continue;
         }
 
-        let val_b: &mut u32 = b_entry.unwrap();
+        let val_b: &mut Comparison = b_entry.unwrap();
 
-        if *val_a > *val_b {
-            *val_a = *val_a - *val_b;
-            *val_b = 0;
-        } else if *val_b > *val_a {
-            *val_b = *val_b - *val_a;
-            *val_a = 0;
+        if val_a.value > val_b.value {
+            val_a.value -= val_b.value;
+            val_a.kind = "+".to_string();
+            val_b.value = 0;
+        } else if val_b.value > val_a.value {
+            val_b.value -= val_a.value;
+            val_b.kind = "+".to_string();
+            val_a.value = 0;
         } else {
-            *val_a = 0;
-            *val_b = 0;
+            val_a.value = 0;
+            val_b.value = 0;
         }
     }
 
-    map_a.retain(|_, value| *value != 0);
-    map_b.retain(|_, value| *value != 0);
+    map_a.retain(|_, c| c.value != 0);
+    map_b.retain(|_, c| c.value != 0);
 }
