@@ -34,10 +34,10 @@ fn main() {
         exit(2);
     }
 
-    let file_a_handle = File::open(file_a.unwrap());
+    let file_a_handle = File::open(&file_a.clone().unwrap());
 
     if file_a_handle.is_err() {
-        write!(stderr_writer, "error opening file a\n").unwrap();
+        write!(stderr_writer, "error opening {}\n", file_a.unwrap()).unwrap();
         write!(
             stderr_writer,
             "{:?}\n",
@@ -48,10 +48,10 @@ fn main() {
         exit(3);
     }
 
-    let file_b_handle = File::open(file_b.unwrap());
+    let file_b_handle = File::open(file_b.clone().unwrap());
 
     if file_b_handle.is_err() {
-        write!(stderr_writer, "error opening file b\n").unwrap();
+        write!(stderr_writer, "error opening {}\n", file_b.unwrap()).unwrap();
         write!(
             stderr_writer,
             "{:?}\n",
